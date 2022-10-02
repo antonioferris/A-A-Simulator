@@ -9,7 +9,7 @@ from functools import reduce, lru_cache
 from time import time
 
 import numpy as np
-from troop import Army, Troop
+from troop import Army, Troop, ATTACK_HIT_DIE, DEFENSE_HIT_DIE
 
 def timer(func):
     # This function shows the execution time of
@@ -37,6 +37,17 @@ def combine_dist(dist1, dist2):
     return total_dist
 
 
+@lru_cache(maxsize=None)
+def hit_dist(hitters, die):
+    """
+        Computes the binomial hit distribution of hitters given the die.
+
+        Cached for speeding up computation since this will be called a TON.
+    """
+    b = binom(hitters, die / 6)
+    dist = [b.pmf(j) for j in range(0, hitters + 1)]
+    return tuple(dist)
+
 def pure_hits(hit_counts):
     """
         Perfectly computes the probability of different total numbers of hits.
@@ -54,8 +65,7 @@ def pure_hits(hit_counts):
         m = hit_counts[i-1]
         if m  == 0:
             continue
-        b = binom(m, i / 6) # distribution for this set of hitters TODO CACHE
-        sub_dist = [b.pmf(j) for j in range(0, m+1)] # store hit count, prob for this class of hitters
+        sub_dist = hit_dist(m, i)
         sub_dists.append(sub_dist)
 
     # we iteratively combine the distributions of hits to move from 4 small distributions to 1 large distribution
@@ -139,7 +149,7 @@ def calculate_battle(hit_counts_1, hit_counts_2, removal_list_1=None, removal_li
 
     # we loop over "state classes" here, which is the total casualties.
     # 2 states with the same total can never transition to each other, so they are unconnected in our markov chain!
-    # i..e doesn't matter what hits you get, (1, 1) can't transition to (2, 0). Can't undo a hit.
+    # i.e. doesn't matter what hits you get, (1, 1) can't transition to (2, 0). Can't undo a hit.
     for state_class in range(0, n + m):
         for k in range(state_class + 1):
             # we are in state (state_class - k, k) here.
@@ -172,23 +182,43 @@ def calculate_full_battle(attacking_army, attack_loss_order, defending_army, def
         Simulates a given battle
         and then returns a tuple (win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss)
 
+        We simulate the battle using markov chains with a state being (h1, h2, a), the number of offense hits,
+        defense hits, and aa gun hits
     Args:
-        attacking_army (_type_): _description_
-        defending_armies (_type_): _description_
+        attacking_army (troop.Army):
+        defending_army (troop.Army):
 
     Returns:
-
+        a dictionary of states
     """
+    n, m = len(attacking_army), len(defending_army)
+    states = {(i, j, k) : 0.0 for i in range(n + 1) for j in range(m + 1) for k in range(aa_dice + 1)}
+
     # first, compute AA gun hits. Sadly, this can't be part of our markov chain because the hits are out of order.
-    if defending_army[Troop.aa] > 0:
-        aa_dice = min(defending_army[Troop.aa] * 3, attacking_army[Troop.fighter] + attacking_army[Troop.bomber])
-        b = binom(aa_dice, 1 / 6) # distribution for this set of hitters
-        sub_dist = [b.pmf(j) for j in range(0, m+1)] # store hit count, prob for this class of hitters
+    aa_dice = min(defending_army[Troop.aa] * 3, attacking_army[Troop.fighter] + attacking_army[Troop.bomber])
+    aa = hit_dist(aa_dice, DEFENSE_HIT_DIE[Troop.aa]) # distribution for this set of hitters
 
-    n, m = sum(hit_counts_1), sum(hit_counts_2)
+    # next, compute the shore bombardment for the attacker.
+    land_units = attacking_army[Troop.inf] + attacking_army[Troop.art] + attacking_army[Troop.tank]
+    num_bombard = min(attacking_army[Troop.cruiser] + attacking_army[Troop.battleship], land_units)
 
-    states = {(i, j) : 0.0 for i in range(n+1) for j in range(m+1)}
-    states[(0, 0)] = 1.0 # starting state is guaranteed
+    battleship_bombard = 0
+    cruiser_bombard = 0
+    if num_bombard > attacking_army[Troop.battleship]: # if we have bombard for battleships and cruisers
+        battleship_bombard = attacking_army[Troop.battleship]
+        num_bombard -= battleship_bombard
+        cruiser_bombard = min(attacking_army[Troop.cruiser], num_bombard)
+    else:
+        battleship_bombard = min(attacking_army[Troop.battleship], num_bombard)
+
+    bombard = combine_dist(hit_dist(cruiser_bombard, ATTACK_HIT_DIE[Troop.cruiser]), hit_dist(battleship_bombard, ATTACK_HIT_DIE[Troop.battleship]))
+
+    # the combination of aa hits and bombard hits is our initial states.
+    for (aa_hit, prob1), (bombard_hit, prob2) in itertools.product(enumerate(aa), enumerate(bombard)):
+        states[(0, bombard_hit, aa_hit)] += prob1 * prob2
+
+
+    # TODO finish function
 
     # we loop over "state classes" here, which is the total casualties.
     # 2 states with the same total can never transition to each other, so they are unconnected in our markov chain!

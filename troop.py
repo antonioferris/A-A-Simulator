@@ -22,6 +22,27 @@ class Troop(Enum):
     fighter = 9
     bomber = 10
 
+ATTACK_HIT_DIE = {
+    Troop.inf : 1,
+    Troop.art : 2,
+    Troop.tank : 3,
+    Troop.cruiser : 3,
+    Troop.battleship : 4,
+    Troop.fighter : 3,
+    Troop.bomber : 4,
+}
+
+DEFENSE_HIT_DIE = {
+    Troop.inf : 2,
+    Troop.art : 2,
+    Troop.tank : 3,
+    Troop.aa : 1,
+    Troop.cruiser : 3,
+    Troop.battleship : 4,
+    Troop.fighter : 3,
+    Troop.bomber : 4,
+}
+
 class Army:
     def __init__(self, owner):
         self.owner = owner
@@ -35,6 +56,9 @@ class Army:
             if cnt != 0:
                 s += f"{cnt} {troop.name}\n"
         return s + "\n"
+
+    def __len__(self):
+        return sum(self.troops.values())
 
     def __getitem__(self, key):
         return self.troops[key]
