@@ -43,6 +43,33 @@ DEFENSE_HIT_DIE = {
     Troop.bomber : 4,
 }
 
+LOSS_ORDER_TROOP = {
+    'I' : Troop.inf,
+    'A' : Troop.art,
+    'T' : Troop.tank,
+    'F' : Troop.fighter,
+    'B' : Troop.bomber,
+    'G' : Troop.aa,
+}
+
+TROOP_IPC_VALUE = {
+    Troop.inf : 3,
+    Troop.art : 4,
+    Troop.tank : 6,
+    Troop.aa : 5,
+    Troop.trans : 7,
+    Troop.cruiser : 12,
+    Troop.carrier : 14,
+    Troop.battleship : 20,
+    Troop.fighter : 10,
+    Troop.bomber : 12
+}
+
+AIR_UNITS = [
+    Troop.fighter,
+    Troop.bomber
+]
+
 class Army:
     def __init__(self, owner):
         self.owner = owner
@@ -50,12 +77,21 @@ class Army:
             troop : 0 for troop in Troop
         }
 
+    def value(self):
+        return sum([cnt * TROOP_IPC_VALUE[troop] for troop, cnt in self.troops.items()])
+
     def __str__(self):
-        s = f"{self.owner.name} Army:\n"
+        s = f"{self.owner.name if self.owner else ''} Army:\n"
         for troop, cnt in self.troops.items():
             if cnt != 0:
                 s += f"{cnt} {troop.name}\n"
         return s + "\n"
+
+    def __repr__(self):
+        s = "<"
+        for troop, cnt in self.troops.items():
+            if cnt != 0:
+                s += f"({troop.name},{cnt})>"
 
     def __len__(self):
         return sum(self.troops.values())
@@ -67,8 +103,6 @@ class Army:
         self.troops[key] = value
 
     def __add__(self, other):
-        if self.owner != other.owner:
-            raise ValueError("Cannot add two armies owned by different powers.")
         r = Army(self.owner)
         for troop in Troop:
             r.troops[troop] += self[troop] + other[troop]

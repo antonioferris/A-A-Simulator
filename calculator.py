@@ -32,12 +32,13 @@ def combine_dist(dist1, dist2):
     for (hit1, prob1), (hit2, prob2) in itertools.product(enumerate(dist1), enumerate(dist2)):
         total_dist[hit1 + hit2] += prob1 * prob2
 
+    if not abs(1 - sum(total_dist)) <= 1e-5:
+        print(dist1, dist2)
     assert(abs(1 - sum(total_dist)) <= 1e-5)
 
     return total_dist
 
 
-@lru_cache(maxsize=None)
 def hit_dist(hitters, die):
     """
         Computes the binomial hit distribution of hitters given the die.
@@ -177,7 +178,8 @@ def calculate_battle(hit_counts_1, hit_counts_2, removal_list_1=None, removal_li
 
     return states
 
-def calculate_full_battle(attacking_army, attack_loss_order, defending_army, defense_loss_order):
+@timer
+def calculate_full_battle(attacking_army, attack_casualty_ball, defending_army, defense_casualty_ball):
     """
         Simulates a given battle
         and then returns a tuple (win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss)
@@ -192,7 +194,6 @@ def calculate_full_battle(attacking_army, attack_loss_order, defending_army, def
         a dictionary of states
     """
     n, m = len(attacking_army), len(defending_army)
-    states = {(i, j, k) : 0.0 for i in range(n + 1) for j in range(m + 1) for k in range(aa_dice + 1)}
 
     # first, compute AA gun hits. Sadly, this can't be part of our markov chain because the hits are out of order.
     aa_dice = min(defending_army[Troop.aa] * 3, attacking_army[Troop.fighter] + attacking_army[Troop.bomber])
@@ -213,44 +214,57 @@ def calculate_full_battle(attacking_army, attack_loss_order, defending_army, def
 
     bombard = combine_dist(hit_dist(cruiser_bombard, ATTACK_HIT_DIE[Troop.cruiser]), hit_dist(battleship_bombard, ATTACK_HIT_DIE[Troop.battleship]))
 
-    # the combination of aa hits and bombard hits is our initial states.
-    for (aa_hit, prob1), (bombard_hit, prob2) in itertools.product(enumerate(aa), enumerate(bombard)):
-        states[(0, bombard_hit, aa_hit)] += prob1 * prob2
+    states = {(i, j, k) : 0.0 for i in range(n + 1) for j in range(m + 1) for k in range(aa_dice + 1)}
 
+    # initial states are based on aa hits
+    for (aa_hit, state_prob) in enumerate(aa):
+        hits_by_1 = pure_hits(attack_casualty_ball.remaining_hits(0, aa_hit))
+        hits_by_1 = combine_dist(hits_by_1, bombard) # add bombard damage to initial damage by attackers.
+        hits_by_2 = pure_hits(defense_casualty_ball.remaining_hits(0))
 
-    # TODO finish function
+        # basically the same as regular transition, except we don't normalize out the self-transition
+        # because we are applying bombard here. Self-transition is the probability of no bombard hits.
+        for (hit_by_1, prob1), (hit_by_2, prob2) in itertools.product(enumerate(hits_by_1), enumerate(hits_by_2)):
+            hit_on_2 = min(m, hit_by_1) # can't be hit more times than you have units
+            hit_on_1 = min(n, hit_by_2)
+            states[(hit_on_1, hit_on_2, aa_hit)] += state_prob * prob1 * prob2
 
-    # we loop over "state classes" here, which is the total casualties.
+    # we loop over "state classes" here, which is casualties.
     # 2 states with the same total can never transition to each other, so they are unconnected in our markov chain!
     # i..e doesn't matter what hits you get, (1, 1) can't transition to (2, 0). Can't undo a hit.
-    for state_class in range(0, n + m):
-        for k in range(state_class + 1):
-            # we are in state (state_class - k, k) here.
-            curr_state =  (state_class - k, k)
-            if curr_state not in states:
-                continue
-            if curr_state[0] == n or curr_state[1] == m: # skip states where one side is dead
-                continue
+    # TODO increase efficiency by exploiting the point where states might transpose if air units are taken as casualties
+    # for regular hits. Then, an AA hit is the same as a regular hit
+    for k in range(aa_dice + 1):
+        for state_class in range(0, (n - k) + m):
+            for q in range(state_class + 1):
+                # we are in state (state_class - q, q) here.
+                curr_state = (state_class - q, q, k)
+                if curr_state not in states:
+                    continue
+                if curr_state[0] == (n - k) or curr_state[1] == m: # skip states where one side is dead
+                    continue
 
-            hits_by_1 = hits(after_hit(hit_counts_1, curr_state[0])) # what hits will the remaining 1 army have?
-            hits_by_2 = hits(after_hit(hit_counts_2, curr_state[1])) # what hits will the remaining 2 army have?
+                # how many attackers / defenders are hitting in this state?
+                hitters_1 = attack_casualty_ball.remaining_hits(curr_state[0], curr_state[2])
+                hitters_2 = defense_casualty_ball.remaining_hits(curr_state[1])
 
-            # normalize away the self-transition of no one hitting anything
-            p1, p2 = hits_by_1[0], hits_by_2[0]
-            normalizer = (1 / (1 - p1 * p2))
+                hits_by_1 = pure_hits(hitters_1) # what hits will the remaining 1 army have?
+                hits_by_2 = pure_hits(hitters_2) # what hits will the remaining 2 army have?
 
-            # now, we add the corresponding transitions to other states
-            transitions = itertools.product(enumerate(hits_by_1), enumerate(hits_by_2))
-            next(transitions) # skip the initial self-transition
+                # normalize away the self-transition of no one hitting anything
+                p1, p2 = hits_by_1[0], hits_by_2[0]
+                normalizer = (1 / (1 - p1 * p2))
 
-            for (hit_by_1, prob1), (hit_by_2, prob2) in transitions:
-                hit_on_2 = min(m, curr_state[1] + hit_by_1) # can't be hit more times than you have units
-                hit_on_1 = min(n, curr_state[0] + hit_by_2)
-                states[(hit_on_1, hit_on_2)] += states[curr_state] * prob1 * prob2 * normalizer
+                # now, we add the corresponding transitions to other states
+                transitions = itertools.product(enumerate(hits_by_1), enumerate(hits_by_2))
+                next(transitions) # skip the initial self-transition
+
+                for (hit_by_1, prob1), (hit_by_2, prob2) in transitions:
+                    hit_on_2 = min(m, curr_state[1] + hit_by_1) # can't be hit more times than you have units
+                    hit_on_1 = min(n, curr_state[0] + hit_by_2)
+                    states[(hit_on_1, hit_on_2, k)] += states[curr_state] * prob1 * prob2 * normalizer
 
     return states
-
-
 
 def simple_battle(h1, h2):
     states = calculate_battle(h1, h2)
@@ -259,7 +273,6 @@ def simple_battle(h1, h2):
     tie_chance = states[(n, m)]
     loss_chance = sum(states[(n, i)] for i in range(m))
     return win_chance, tie_chance, loss_chance
-
 
 def test_calc():
     h1, h2 = [0, 0, 0, 3, 0], [0, 0, 0, 3, 0]
