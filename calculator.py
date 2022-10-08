@@ -36,7 +36,7 @@ def combine_dist(dist1, dist2):
         print(dist1, dist2)
     assert(abs(1 - sum(total_dist)) <= 1e-5)
 
-    return total_dist
+    return tuple(total_dist)
 
 
 def hit_dist(hitters, die):
@@ -59,6 +59,8 @@ def pure_hits(hit_counts):
         hit_counts = hit_counts[1:] # remove AA guns (hit 0) from consideration
 
     n = sum(hit_counts)
+    if n == 0:
+        return (1.0,)
 
     sub_dists = [] # list of distribution for each hit count
 
@@ -75,110 +77,10 @@ def pure_hits(hit_counts):
     # make sure our probability sums to 1!
     assert(abs(1 - sum(total_dist)) <= 1e-5)
 
-    return total_dist
-
-def approx_hits(hit_counts):
-    """
-        Approximately computes the probability of different total numbers of hits.
-        Uses normal distributions to approximate.
-
-        hit_counts is a list of the number of hitters on 1, 2, 3, 4.
-    """
-    if len(hit_counts) == 5:
-        hit_counts = hit_counts[1:] # remove AA guns (hit 0) from consideration
-
-    total_mu, total_var = 0, 0
-    for i in range(1, 5):
-        n, p = hit_counts[i-1], i / 6
-        total_mu += n * p # this is the normal approximation of the binomial
-        total_var += n * p * (1 - p)
-
-    norm_dist = norm(total_mu, total_var) # this is the normal approximation of the sum of the component parts
-
-    n = sum(hit_counts)
-
-    raw_dist = [0.0] * (n + 1)
-    for i in range(n + 1):
-        raw_dist[i] += norm_dist.pdf(i)
-
-    normalization_constant = sum(raw_dist)
-    total_dist = [raw_dist[i] / normalization_constant for i in range(n + 1)] # need to normalize because the normal extends beyond [0, n]
-
-    return total_dist
-
-def after_hit(hit_count, hits_taken, removal_list=None):
-    """
-        Calculate the new hit count list after the casualties
-    """
-    new_hit_count = [hit_count[i] for i in range(5)]
-    for i in range(5):
-        if new_hit_count[i] >= hits_taken:
-            new_hit_count[i] -= hits_taken
-            break
-        else:
-            hits_taken -= new_hit_count[i]
-            new_hit_count[i] = 0
-
-    return new_hit_count
+    return tuple(total_dist)
 
 
-@timer
-def calculate_battle(hit_counts_1, hit_counts_2, removal_list_1=None, removal_list_2=None, hits=pure_hits):
-    """
-        This function treats an A&A battle as a markov chain, where each state
-        is a tuple (i, j) where i is the casualties side 1 sustained, and j is the casualties side 2 sustained.
 
-        Since we are just doing land battles, we don't need to worry about a situation where there's a tie. We just
-        keep transitioning the markov chain according to probabilities until we hit an end state.
-
-        A very simple example: 1 tank v 2 tank.
-
-        start state: (0, 0) - no casualties left.
-        There is a 12.5% chance to transition to (0, 1) - attacking tank hit, both defending tanks miss
-        There is a 25% chance to transition to (1, 1) - both sides get a hit
-
-        And so on.
-
-        removal_list is an ordered list of what hit is removed as casualty each time.
-        hit_counts is a list with five elements, representing the number of troops that hit on 0, 1, 2, 3, and 5 respectively.
-        hit_counts[1:] is passed on to a hit calculator to calculate our transition probabilities.
-    """
-    n, m = sum(hit_counts_1), sum(hit_counts_2)
-
-    states = {(i, j) : 0.0 for i in range(n+1) for j in range(m+1)}
-    states[(0, 0)] = 1.0 # starting state is guaranteed
-
-    # we loop over "state classes" here, which is the total casualties.
-    # 2 states with the same total can never transition to each other, so they are unconnected in our markov chain!
-    # i.e. doesn't matter what hits you get, (1, 1) can't transition to (2, 0). Can't undo a hit.
-    for state_class in range(0, n + m):
-        for k in range(state_class + 1):
-            # we are in state (state_class - k, k) here.
-            curr_state =  (state_class - k, k)
-            if curr_state not in states:
-                continue
-            if curr_state[0] == n or curr_state[1] == m: # skip states where one side is dead
-                continue
-
-            hits_by_1 = hits(after_hit(hit_counts_1, curr_state[0])) # what hits will the remaining 1 army have?
-            hits_by_2 = hits(after_hit(hit_counts_2, curr_state[1])) # what hits will the remaining 2 army have?
-
-            # normalize away the self-transition of no one hitting anything
-            p1, p2 = hits_by_1[0], hits_by_2[0]
-            normalizer = (1 / (1 - p1 * p2))
-
-            # now, we add the corresponding transitions to other states
-            transitions = itertools.product(enumerate(hits_by_1), enumerate(hits_by_2))
-            next(transitions) # skip the initial self-transition
-
-            for (hit_by_1, prob1), (hit_by_2, prob2) in transitions:
-                hit_on_2 = min(m, curr_state[1] + hit_by_1) # can't be hit more times than you have units
-                hit_on_1 = min(n, curr_state[0] + hit_by_2)
-                states[(hit_on_1, hit_on_2)] += states[curr_state] * prob1 * prob2 * normalizer
-
-    return states
-
-@timer
 def calculate_full_battle(attacking_army, attack_casualty_ball, defending_army, defense_casualty_ball):
     """
         Simulates a given battle
@@ -193,11 +95,11 @@ def calculate_full_battle(attacking_army, attack_casualty_ball, defending_army, 
     Returns:
         a dictionary of states
     """
-    n, m = len(attacking_army), len(defending_army)
+    n, m = attack_casualty_ball.combatants, defense_casualty_ball.combatants
 
     # first, compute AA gun hits. Sadly, this can't be part of our markov chain because the hits are out of order.
     aa_dice = min(defending_army[Troop.aa] * 3, attacking_army[Troop.fighter] + attacking_army[Troop.bomber])
-    aa = hit_dist(aa_dice, DEFENSE_HIT_DIE[Troop.aa]) # distribution for this set of hitters
+    aa = hit_dist(aa_dice, 1) # AA hit on a 1 only during AA step
 
     # next, compute the shore bombardment for the attacker.
     land_units = attacking_army[Troop.inf] + attacking_army[Troop.art] + attacking_army[Troop.tank]
@@ -226,7 +128,7 @@ def calculate_full_battle(attacking_army, attack_casualty_ball, defending_army, 
         # because we are applying bombard here. Self-transition is the probability of no bombard hits.
         for (hit_by_1, prob1), (hit_by_2, prob2) in itertools.product(enumerate(hits_by_1), enumerate(hits_by_2)):
             hit_on_2 = min(m, hit_by_1) # can't be hit more times than you have units
-            hit_on_1 = min(n, hit_by_2)
+            hit_on_1 = min(n - aa_hit, hit_by_2)
             states[(hit_on_1, hit_on_2, aa_hit)] += state_prob * prob1 * prob2
 
     # we loop over "state classes" here, which is casualties.
@@ -234,14 +136,15 @@ def calculate_full_battle(attacking_army, attack_casualty_ball, defending_army, 
     # i..e doesn't matter what hits you get, (1, 1) can't transition to (2, 0). Can't undo a hit.
     # TODO increase efficiency by exploiting the point where states might transpose if air units are taken as casualties
     # for regular hits. Then, an AA hit is the same as a regular hit
-    for k in range(aa_dice + 1):
-        for state_class in range(0, (n - k) + m):
+    for state_class in range(0, n + m):
+        for k in range(aa_dice + 1):
             for q in range(state_class + 1):
-                # we are in state (state_class - q, q) here.
+                # we are in state (state_class - q, q) here
                 curr_state = (state_class - q, q, k)
+
                 if curr_state not in states:
                     continue
-                if curr_state[0] == (n - k) or curr_state[1] == m: # skip states where one side is dead
+                if curr_state[0] + k >= n or curr_state[1] >= m: # skip states where one side is dead
                     continue
 
                 # how many attackers / defenders are hitting in this state?
@@ -259,69 +162,15 @@ def calculate_full_battle(attacking_army, attack_casualty_ball, defending_army, 
                 transitions = itertools.product(enumerate(hits_by_1), enumerate(hits_by_2))
                 next(transitions) # skip the initial self-transition
 
+                psum = 0
                 for (hit_by_1, prob1), (hit_by_2, prob2) in transitions:
-                    hit_on_2 = min(m, curr_state[1] + hit_by_1) # can't be hit more times than you have units
-                    hit_on_1 = min(n, curr_state[0] + hit_by_2)
+                    hit_on_2 = min(m, hit_by_1 + curr_state[1]) # can't be hit more times than you have units
+                    hit_on_1 = min(n - k, hit_by_2 + curr_state[0])
+                    psum += prob1 * prob2 * normalizer
                     states[(hit_on_1, hit_on_2, k)] += states[curr_state] * prob1 * prob2 * normalizer
 
+
+                if abs(psum - 1) >= 1e-5:
+                    print("ERROR: State probabilities don't add up.", psum, k, state_class, q, curr_state)
+
     return states
-
-def simple_battle(h1, h2):
-    states = calculate_battle(h1, h2)
-    n, m = sum(h1), sum(h2)
-    win_chance = sum(states[(i, m)] for i in range(n))
-    tie_chance = states[(n, m)]
-    loss_chance = sum(states[(n, i)] for i in range(m))
-    return win_chance, tie_chance, loss_chance
-
-def test_calc():
-    h1, h2 = [0, 0, 0, 3, 0], [0, 0, 0, 3, 0]
-    w, t, l = simple_battle(h1, h2)
-    assert(abs(w - l) <= 1e-5)
-
-    h1, h2 = [0, 0, 10, 5, 5], [0, 5, 5, 5, 5]
-    w, t, l = simple_battle(h1, h2)
-    assert(.58 < w < .59)
-    assert(.39 < l < .40)
-
-    h1, h2 = [0, 2, 1, 0, 0], [0, 1, 0, 1, 0]
-    w, t, l = simple_battle(h1, h2)
-    assert(.62 < w < .63)
-    assert(.29 < l < .30)
-
-    # Currently Failing
-    # h1, h2 = [25, 30, 10, 5, 4], [0, 0, 60, 3, 10]
-    # w, t, l = simple_battle(h1, h2)
-    # print(w, t, l)
-    # # assert(.32 < w < .33)
-    # # assert(.67 < l < .68)
-
-def test_approx():
-    h = [0, 3, 0, 0]
-    d1 = np.array(pure_hits(h))
-    d2 = np.array(approx_hits(h))
-
-    print(np.allclose(d1, d2))
-    print(np.max(np.abs(d1 - d2)))
-
-    h = [0, 3, 2, 1]
-    d1 = np.array(pure_hits(h))
-    d2 = np.array(approx_hits(h))
-
-    print(np.allclose(d1, d2))
-    print(np.max(np.abs(d1 - d2)))
-
-    h = [30, 30, 70, 30]
-    d1 = np.array(pure_hits(h))
-    d2 = np.array(approx_hits(h))
-
-    print(np.allclose(d1, d2))
-    print(np.max(np.abs(d1 - d2)))
-
-
-
-def main():
-    test_calc()
-
-if __name__ == '__main__':
-    main()
