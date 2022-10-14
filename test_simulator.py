@@ -7,16 +7,16 @@ sys.path.append('..')
 
 
 from troop import Troop, Army, Power
-from simulator import battle
+from simulator import land_battle
 
-class Basic(unittest.TestCase):
+class BasicCalc(unittest.TestCase):
 
     def test_inf_small(self):
         a1 = Army(Power.J)
         a1[Troop.inf] += 2
         a2 = Army(Power.UK)
         a2[Troop.inf] += 1
-        win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss = battle(a1, a2)
+        win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss = land_battle(a1, a2)
         accuracy_decimal = 2
 
         self.assertAlmostEqual(win_chance, 0.677, places=accuracy_decimal)
@@ -30,7 +30,7 @@ class Basic(unittest.TestCase):
         a1[Troop.inf] += 10
         a2 = Army(Power.UK)
         a2[Troop.inf] += 4
-        win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss = battle(a1, a2)
+        win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss = land_battle(a1, a2)
         accuracy_decimal = 2
 
         self.assertAlmostEqual(win_chance, 0.977, places=accuracy_decimal)
@@ -47,7 +47,7 @@ class Basic(unittest.TestCase):
         a1[Troop.battleship] += 1
         a2 = Army(Power.G)
         a2[Troop.inf] += 6
-        win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss = battle(a1, a2)
+        win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss = land_battle(a1, a2)
         accuracy_decimal = 2
 
         self.assertAlmostEqual(win_chance, 0.273, places=accuracy_decimal)
@@ -61,7 +61,7 @@ class Basic(unittest.TestCase):
         a1[Troop.fighter] += 1
         a2 = Army(Power.G)
         a2[Troop.aa] += 1
-        win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss = battle(a1, a2, need_conquer=False)
+        win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss = land_battle(a1, a2, need_conquer=False)
         accuracy_decimal = 2
 
         self.assertAlmostEqual(win_chance, 0.833, places=accuracy_decimal)
@@ -76,7 +76,7 @@ class Basic(unittest.TestCase):
         a2 = Army(Power.G)
         a2[Troop.inf] += 1
         a2[Troop.aa] += 1
-        win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss = battle(a1, a2, need_conquer=False)
+        win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss = land_battle(a1, a2, need_conquer=False)
         accuracy_decimal = 2
 
         self.assertAlmostEqual(win_chance, 0.208, places=accuracy_decimal)
@@ -93,7 +93,7 @@ class Basic(unittest.TestCase):
         a2 = Army(Power.G)
         a2[Troop.inf] += 3
         a2[Troop.aa] += 1
-        win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss = battle(a1, a2)
+        win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss = land_battle(a1, a2)
         accuracy_decimal = 2
 
         self.assertAlmostEqual(win_chance, 0.325, places=accuracy_decimal)
@@ -111,7 +111,7 @@ class Basic(unittest.TestCase):
         a2 = Army(Power.G)
         a2[Troop.inf] += 5
         a2[Troop.aa] += 1
-        win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss = battle(a1, a2)
+        win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss = land_battle(a1, a2)
         accuracy_decimal = 2
 
         self.assertAlmostEqual(win_chance, 0.229, places=accuracy_decimal)
@@ -126,7 +126,7 @@ class Basic(unittest.TestCase):
         a1[Troop.bomber] += 2
         a2 = Army(Power.G)
         a2[Troop.inf] += 3
-        win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss = battle(a1, a2, need_conquer=False)
+        win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss = land_battle(a1, a2, need_conquer=False)
         accuracy_decimal = 2
 
         self.assertAlmostEqual(win_chance, 0.748, places=accuracy_decimal)
@@ -141,7 +141,7 @@ class Basic(unittest.TestCase):
         a1[Troop.art] += 1
         a2 = Army(Power.J)
         a2[Troop.inf] += 1
-        win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss = battle(a1, a2, need_conquer=False)
+        win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss = land_battle(a1, a2, need_conquer=False)
         accuracy_decimal = 2
 
         self.assertAlmostEqual(win_chance, 0.874, places=accuracy_decimal)
@@ -156,7 +156,7 @@ class Basic(unittest.TestCase):
         a1[Troop.art] += 2
         a2 = Army(Power.J)
         a2[Troop.inf] += 6
-        win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss = battle(a1, a2)
+        win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss = land_battle(a1, a2)
         accuracy_decimal = 2
 
         self.assertAlmostEqual(win_chance, 0.413, places=accuracy_decimal)
@@ -175,7 +175,7 @@ class Basic(unittest.TestCase):
         a2 = Army(Power.G)
         a2[Troop.inf] += 6
         a2[Troop.aa] += 1
-        win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss = battle(a1, a2)
+        win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss = land_battle(a1, a2)
         accuracy_decimal = 2
 
         self.assertAlmostEqual(win_chance, 0.303, places=accuracy_decimal)
@@ -184,7 +184,6 @@ class Basic(unittest.TestCase):
         self.assertAlmostEqual(avg_attack_loss, 23.1, places=0)
         self.assertAlmostEqual(avg_defense_loss, 16.2, places=0)
 
-    @unittest.skip("not done yet")
     def test_everything_medium(self):
         a1 = Army(Power.US)
         a1[Troop.inf] += 13
@@ -197,16 +196,16 @@ class Basic(unittest.TestCase):
         a2[Troop.inf] += 20
         a2[Troop.art] += 1
         a2[Troop.aa] += 1
-        win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss = battle(a1, a2)
+        win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss = land_battle(a1, a2)
         accuracy_decimal = 2
 
-        self.assertAlmostEqual(win_chance, 0.303, places=accuracy_decimal)
-        self.assertAlmostEqual(loss_chance, 0.670, places=accuracy_decimal)
+        self.assertAlmostEqual(win_chance, 0.174, places=accuracy_decimal)
+        self.assertAlmostEqual(loss_chance, 0.821, places=accuracy_decimal)
         self.assertAlmostEqual(tie_chance, 1 - win_chance - loss_chance, places=accuracy_decimal)
-        self.assertAlmostEqual(avg_attack_loss, 23.1, places=0)
-        self.assertAlmostEqual(avg_defense_loss, 16.2, places=0)
+        self.assertAlmostEqual(avg_attack_loss, 66.5, places=0)
+        self.assertAlmostEqual(avg_defense_loss, 46.0, places=0)
 
-class Bulk(unittest.TestCase):
+class BulkCalc(unittest.TestCase):
 
     @unittest.skip("debug skipping")
     def test_inf_large(self):
@@ -214,7 +213,7 @@ class Bulk(unittest.TestCase):
         a1[Troop.inf] += 100
         a2 = Army(Power.UK)
         a2[Troop.inf] += 65
-        win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss = battle(a1, a2)
+        win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss = land_battle(a1, a2)
         accuracy_decimal = 2
 
         self.assertAlmostEqual(win_chance, 0.860, places=accuracy_decimal)
@@ -222,6 +221,27 @@ class Bulk(unittest.TestCase):
         self.assertAlmostEqual(tie_chance, 1 - win_chance - loss_chance, places=accuracy_decimal)
         self.assertAlmostEqual(avg_attack_loss, 212.1, places=0)
         self.assertAlmostEqual(avg_defense_loss, 189.3, places=0)
+
+    def test_ground_large(self):
+        a1 = Army(Power.J)
+        a1[Troop.inf] += 35
+        a1[Troop.art] += 21
+        a1[Troop.tank] += 9
+        a1[Troop.fighter] += 5
+        a1[Troop.bomber] += 4
+        a2 = Army(Power.R)
+        a2[Troop.inf] += 48
+        a2[Troop.art] += 9
+        a2[Troop.fighter] += 11
+        win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss = land_battle(a1, a2)
+        accuracy_decimal = 2
+
+        print(win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss)
+        self.assertAlmostEqual(win_chance, 0.496, places=accuracy_decimal)
+        self.assertAlmostEqual(loss_chance, 0.500, places=accuracy_decimal)
+        self.assertAlmostEqual(tie_chance, 1 - win_chance - loss_chance, places=accuracy_decimal)
+        self.assertAlmostEqual(avg_attack_loss, 286.5, places=0)
+        self.assertAlmostEqual(avg_defense_loss, 256.7, places=0)
 
     def test_everything_large(self):
         a1 = Army(Power.US)
@@ -238,7 +258,7 @@ class Bulk(unittest.TestCase):
         a2[Troop.fighter] += 3
         a2[Troop.bomber] += 1
         a2[Troop.aa] += 1
-        win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss = battle(a1, a2)
+        win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss = land_battle(a1, a2)
         accuracy_decimal = 2
 
         self.assertAlmostEqual(win_chance, 0.686, places=accuracy_decimal)

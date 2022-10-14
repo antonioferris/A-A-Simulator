@@ -38,7 +38,10 @@ class CasualtyBall:
         self.combatants = sum(self.troops.values())
         self.combatant_values = sum([cnt * TROOP_IPC_VALUE[troop] for troop, cnt in self.troops.items()])
         self.land_units = army.troops[Troop.inf] + army.troops[Troop.art] + army.troops[Troop.tank]
-        self.need_conquer = need_conquer
+        if not self.land_units:
+            self.need_conquer = False # obviously, need_conquer only makes sense when land units are involved!
+        else:
+            self.need_conquer = need_conquer
         self.loss_order = loss_order
 
         hits = [0] * 5
@@ -78,6 +81,7 @@ class CasualtyBall:
             self.universal_hit_list.append(tuple(hits))
 
 
+    @lru_cache(maxsize=None)
     def remaining_hits(self, hits, aa_hits=0):
         """
             this function returns the hit dice remaining after a certain number of hits
@@ -91,12 +95,12 @@ class CasualtyBall:
             aa_losses = self.air_loss_list[aa_hits]
             remaining = [remaining[i] - aa_losses[i] for i in range(len(remaining))] # subtract out losses from AA
 
-        return remaining
+        return tuple(remaining)
 
     def remaining_troops(self, hits, aa_hits=0):
         """
             this function returns an Army with the troops left alive after the combat.
-            called only n * k times per battle, where n is the number of troops
+            called only n * k times per land_battle, where n is the number of troops
             and k is the number of AA shots
         """
         r = Army(None)
@@ -136,12 +140,12 @@ class CasualtyBall:
 
         return r
 
-def battle(attacking_army, defense, need_conquer=True, attack_loss_order="IATFB", defense_loss_order="GIABTF"):
+def land_battle(attacking_army, defense, need_conquer=True, attack_loss_order="IATFB", defense_loss_order="GIABTF"):
     """
-        Given a battle between armies, this function forms a call to calculator.calculate_full_battle
-        and then returns.
+        Given a land_battle between armies, this function forms a call to calculator.calculate_full_battle
+        and then returns (win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss)
         Defense can be either an army or a list of armies
-        (win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss)
+
     """
     if isinstance(defense, list):
        defending_army = sum(defense) # sum all defending armies
@@ -152,7 +156,7 @@ def battle(attacking_army, defense, need_conquer=True, attack_loss_order="IATFB"
     attack_ball = CasualtyBall(attacking_army, attacker=True, loss_order=attack_loss_order, need_conquer=need_conquer)
     defense_ball = CasualtyBall(defending_army, attacker=False, loss_order=defense_loss_order, need_conquer=False)
 
-    # actually calculate the battle
+    # actually calculate the land_battle
     states = calculator.calculate_full_battle(attacking_army, attack_ball, defending_army, defense_ball)
     n = attack_ball.combatants
     m = defense_ball.combatants
@@ -161,7 +165,6 @@ def battle(attacking_army, defense, need_conquer=True, attack_loss_order="IATFB"
 
     win_chance, tie_chance, loss_chance = 0, 0, 0
     avg_attack_loss, avg_defense_loss = 0, 0
-    psum = 0
     for (offense_casualties, defense_casualties, aa_hits), prob in states.items():
         if offense_casualties + aa_hits == n and defense_casualties == m:
             a = Army(None) # empty armies since everything died
@@ -179,23 +182,30 @@ def battle(attacking_army, defense, need_conquer=True, attack_loss_order="IATFB"
             # print(f"{prob:.3f} Chance of attack winning with {state[0]} hits {state[2]} aa_hits and these units left ipc {a.value()}:\n{a}")
         else:
             continue # skip non-terminal states
-        psum += prob
+
         avg_attack_loss += prob * (orig_attack_val - a.value())
         avg_defense_loss += prob * (orig_defense_val - d.value())
-    if abs(1 - psum) >= 1e-5:
-        print("probably some problem", psum)
 
     return win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss
 
 def test_simple_battle():
-    a1 = Army(Power.J)
-    a1[Troop.inf] += 2
-    a2 = Army(Power.UK)
-    a2[Troop.inf] += 1
-    win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss = battle(a1, a2)
-    print(f"{win_chance*100:.1f}% win -{avg_attack_loss:.1f} attack IPC, {tie_chance*100:.1f}% tie, {loss_chance*100:.1f}% loss -{avg_defense_loss:.1f} defense IPC")
+    a1 = Army(Power.US)
+    a1[Troop.inf] += 13
+    a1[Troop.art] += 4
+    a1[Troop.tank] += 1
+    a1[Troop.fighter] += 1
+    a1[Troop.cruiser] += 1
+    a1[Troop.battleship] += 1
+    a2 = Army(Power.G)
+    a2[Troop.inf] += 20
+    a2[Troop.art] += 1
+    a2[Troop.aa] += 1
+    win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss = land_battle(a1, a2)
+    accuracy_decimal = 2
+    print(win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss)
 
 def main():
+    test_simple_battle()
     test_simple_battle()
 
 if __name__ == '__main__':

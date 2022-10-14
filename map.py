@@ -15,6 +15,7 @@ class Territory:
         self.is_land = is_land
         self.has_ic = has_ic
         self.is_capital = is_capital
+        self.armies = []
 
     def __str__(self):
         return self.name

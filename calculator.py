@@ -38,7 +38,7 @@ def combine_dist(dist1, dist2):
 
     return tuple(total_dist)
 
-
+@lru_cache(maxsize=None)
 def hit_dist(hitters, die):
     """
         Computes the binomial hit distribution of hitters given the die.
@@ -49,6 +49,7 @@ def hit_dist(hitters, die):
     dist = [b.pmf(j) for j in range(0, hitters + 1)]
     return tuple(dist)
 
+@lru_cache(maxsize=None)
 def pure_hits(hit_counts):
     """
         Perfectly computes the probability of different total numbers of hits.
@@ -80,10 +81,10 @@ def pure_hits(hit_counts):
     return tuple(total_dist)
 
 
-
+@timer
 def calculate_full_battle(attacking_army, attack_casualty_ball, defending_army, defense_casualty_ball):
     """
-        Simulates a given battle
+        Calculates possible results of a given battle
         and then returns a tuple (win_chance, tie_chance, loss_chance, avg_attack_loss, avg_defense_loss)
 
         We simulate the battle using markov chains with a state being (h1, h2, a), the number of offense hits,
@@ -139,6 +140,9 @@ def calculate_full_battle(attacking_army, attack_casualty_ball, defending_army, 
     for state_class in range(0, n + m):
         for k in range(aa_dice + 1):
             for q in range(state_class + 1):
+                # k : number of aa_hits we are dealing with
+                # q : number of defense hits
+                # state_class : total number of non-aa casualties
                 # we are in state (state_class - q, q) here
                 curr_state = (state_class - q, q, k)
 
